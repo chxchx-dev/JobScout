@@ -10,7 +10,7 @@ const warnings = [];
 
 // Lista blanca: cualquier permiso fuera de aquí exige justificación explícita.
 const ALLOWED_PERMISSIONS = new Set(['storage', 'activeTab']);
-const ALLOWED_OPTIONAL_PERMISSIONS = new Set([]);
+const ALLOWED_OPTIONAL_PERMISSIONS = new Set(['scripting']);
 
 const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'build', 'coverage']);
 
@@ -126,7 +126,12 @@ if (manifest) {
   }
 
   assertPatternList(manifest.host_permissions, 'host_permissions');
-  assertPatternList(manifest.optional_host_permissions, 'optional_host_permissions');
+  const optionalHosts = assertPatternList(manifest.optional_host_permissions ?? [], 'optional_host_permissions');
+  for (const pattern of optionalHosts) {
+    if (pattern !== 'https://jobs.ashbyhq.com/*') {
+      errors.push(`Permiso de host opcional fuera de la ficha N2 de Ashby: ${pattern}`);
+    }
+  }
 
   const worker = manifest.background?.service_worker;
   if (!worker) errors.push('Falta background.service_worker.');
@@ -174,7 +179,7 @@ for (const file of allFiles) {
 
 checkSyntax(allFiles);
 
-const coreFiles = srcFiles.filter((file) => relative(root, file).startsWith(`src${'/'}core${'/'}`));
+const coreFiles = srcFiles.filter((file) => relative(root, file).replaceAll('\\', '/').startsWith('src/core/'));
 scanForbidden(coreFiles, CORE_FORBIDDEN, 'src/core');
 
 const renderFiles = srcFiles.filter((file) => /\.(js|mjs)$/.test(file));

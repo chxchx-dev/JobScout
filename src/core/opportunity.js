@@ -55,7 +55,7 @@ export function canonicalUrl(raw) {
   if (!url) return null;
   url.hash = '';
   for (const key of [...url.searchParams.keys()]) {
-    if (/^(utm_.+|fbclid|gclid|mc_cid|mc_eid)$/i.test(key)) url.searchParams.delete(key);
+    if (/^(utm_.+|fbclid|gclid|mc_cid|mc_eid|ref)$/i.test(key)) url.searchParams.delete(key);
   }
   url.searchParams.sort();
   if (url.pathname !== '/') url.pathname = url.pathname.replace(/\/+$/, '');

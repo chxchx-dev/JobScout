@@ -4,6 +4,25 @@ Formato basado en Keep a Changelog. Fechas en ISO-8601.
 
 ## [Unreleased]
 
+### Escaneo local por enlaces Ashby
+
+- El escáner N2 detecta enlaces del listado del único tablero Ashby que autorizaste y guarda solo URL y título; no consulta la API ni guarda descripciones.
+- El dashboard muestra las oportunidades guardadas en IndexedDB; la deduplicación conserva el estado y las notas existentes.
+- El permiso dinámico queda limitado al path del slug activo, se detiene con la pestaña oculta y procesa un máximo de 200 enlaces por lote.
+- Las consultas Ashby/Greenhouse N0 al abrir popup/dashboard se retiraron; la API sigue disponible con acción manual **Consultar ahora**.
+- Añadidos fixtures de validación, límite de enlaces y rechazo de rutas/hosts ajenos, además de ADR-0003 y actualización de política/QA.
+
+- El permiso N2 requiere opt-in y revisión por tablero; solo queda un slug activo, y desactivar retira el script y el permiso.
+
+### Correcciones para validación MVP
+
+- Eliminados el registro N2 sin ADR ni archivo y permisos opcionales de portales que el flujo actual no usa.
+- Restaurado `core/pacing`, requerido por el service worker, con presupuestos por nivel, jitter gaussiano y backoff acotado.
+- Clasificadas las respuestas 401/403/429 como throttling y las 5xx como reintentables; las APIs N0 siempre omiten credenciales y no siguen redirecciones automáticas.
+- Normalización de URL ampliada para eliminar también el parámetro de seguimiento `ref`.
+- Alineada la versión del paquete y la guía con el manifiesto `0.2.0`.
+- Ajustado el chequeo estático para permisos opcionales omitidos y rutas `src/core` en Windows.
+
 ### Política, arquitectura y ritmo
 
 - Modelo de fuentes por niveles N0–N3, con N0/N3 habilitables y N1/N2 condicionados a ficha y ADR.

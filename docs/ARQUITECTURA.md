@@ -9,15 +9,17 @@ Los conectores se organizan por niveles (N0–N3) según `docs/POLITICA_DE_FUENT
 ```mermaid
 flowchart TD
   A[Usuario abre popup] --> B[Permiso temporal activeTab]
-  B --> C[URL y título solamente]
+  B --> C[URL y título cuando aplica]
   C --> D[Normalizador y URL segura]
   E[Dashboard: enlace manual] --> D
   F[Dashboard: consultar fuente habilitada] --> G[Mensajería MV3]
+  X[Usuario abre un tablero Ashby + opt-in explícito] --> Q
   G --> H[Service Worker: validación, límite y política de ritmo]
   H --> P[Programador por dominio: jitter, backoff, disyuntor]
   P --> I[Fuente declarada: API oficial N0 / endpoint interno N1]
   I --> J[Adaptador: esquema unificado]
-  Q[content_scripts N2: dominio declarado] -->|lectura mínima de DOM| J
+  M -->|flag, un slug y permiso opcional| Q[Content script N2 Ashby: enlaces visibles]
+  Q -->|solo URL y título, sin red| J
   V[Visibilidad de pestaña] --> Q
   J --> D
   D --> K[IndexedDB: oportunidades]
@@ -31,13 +33,13 @@ flowchart TD
 
 | Módulo | Responsabilidad | Prohibiciones |
 |---|---|---|
-| popup | Leer URL/título solo bajo acción de usuario y fuera de portales restringidos, validar, guardar | Nunca inyectar scripts ni leer HTML |
-| dashboard | UI, seguimiento, respaldo, ajustes | No ejecutar scripts de contenido externo |
+| popup | Pedir opt-in/permisos para un tablero Ashby; guardar manualmente cuando no hay conector | No dispara consultas API al abrir; N2 queda apagado por defecto |
+| dashboard | UI, seguimiento, respaldo, ajustes y consulta API solo tras pulsar «Consultar ahora» | No ejecutar scripts de contenido externo |
 | core | Validación pura, ID por URL canonizada, matching transparente | No acceder a `chrome`, DOM, red |
-| storage | IndexedDB: vacantes; storage.local: ajustes | No guardar tokens, CV ni cookies |
-| sources | Adaptadores y normalizadores de respuestas oficiales | No endpoints arbitrarios, no HTML activo |
-| content |	Solo para conectores N2: lectura mínima del DOM en dominios declarados |	No inyectar estilos, no reescribir la página, no red |
-| background | Validar fuente registrada y activa, cooldown, HTTP GET | No consultas periódicas, no cookies ni reintentos automáticos |
+| storage | IndexedDB: vacantes; storage.local: ajustes, presupuestos diarios por host y nivel A | No guardar tokens, CV ni cookies |
+| sources | Adaptadores N0 y normalizador N2 de enlaces Ashby | No endpoints arbitrarios ni HTML activo |
+| content | Content script dinámico N2 solo para el slug Ashby autorizado | No guardar descripciones, inyectar estilos, reescribir la página ni hacer red |
+| background | Validar slug, permiso y visibilidad; consultas N0 solo por acción manual | No alarmas ni consultas automáticas; sin cookies; reintentos N0 solo con backoff y jitter |
 
 ## Contrato de oportunidad
 
@@ -75,7 +77,7 @@ El objetivo es parecer un humano aburrido. Toda la decisión es pura y vive en c
 - Pacing por dominio, no global. El presupuesto se lleva por host; un host nunca recibe dos peticiones seguidas si hay otro esperando.
 - Arranque suave. Las primeras peticiones de una sesión son lentas y suben hasta el presupuesto del nivel A.
 - Backoff exponencial con jitter y tope. 401/403/429 => pausa creciente. 5xx => reintento con jitter. Nunca reintento inmediato.
-- Disyuntor por dominio. N fallos consecutivos congelan ese dominio; el resto sigue. - Estado y contadores persisten en chrome.storage.session porque el Service Worker muere.
+- Disyuntor por dominio. N fallos consecutivos congelan ese dominio; el resto sigue. Los intervalos y fallos por minuto persisten en chrome.storage.session; el presupuesto por host de 24 horas, la cadencia y el nivel A persisten en chrome.storage.local.
 - El nivel A se persiste en chrome.storage.local, nunca en memoria: sobrevive reinicios y es auditable.
 - Un 429 devuelve a A0. El ascenso exige sesiones limpias acumuladas, nunca se sube a mitad de sesión.
 - Pestaña oculta en N2 => actividad reducida o detenida.
@@ -91,7 +93,8 @@ El objetivo es parecer un humano aburrido. Toda la decisión es pura y vive en c
 - Límite de tiempo vía AbortSignal y tope de tamaño de respuesta.
 - Permisos de host limitados a los dominios declarados en docs/POLITICA_DE_FUENTES.md; nunca <all_urls>.
 - chrome.storage.local restringido a TRUSTED_CONTEXTS; IndexedDB solo disponible en origen de la extensión.
-- El content_scripts de N2 no inyecta estilos ni modifica el DOM de la página: solo lee.
+- El content script N2 de Ashby no se registra sin flag, revisión de condiciones y permisos opcionales; se limita a un slug de tablero, lee solo URL y título de enlaces visibles y no modifica la página.
+- Los conectores N0 son manuales: solo consultan cuando la persona pulsa «Consultar ahora». Abrir el popup o dashboard nunca dispara una petición.
 
 ## Trazabilidad
 Cada conector registra nivel, host, peticiones, códigos de respuesta, pausas aplicadas y cambios de nivel A. El log no incluye credenciales ni datos personales.

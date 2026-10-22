@@ -41,12 +41,12 @@
     </section>
     <section id="section-sources" class="section hidden">
       <div class="intro"><div><h2>Fuentes de ofertas</h2><p>Conecta únicamente tableros de empleadores cuyo uso hayas verificado. Ninguna fuente está activada por defecto.</p></div></div>
-      <div class="warning">Las APIs públicas de Ashby y Greenhouse no equivalen automáticamente a permiso de terceros para agregar datos. Comprueba las condiciones del proveedor y del empleador antes de activarlas. Toda consulta es manual y arranca en nivel A0.</div>
+      <div class="warning">Las APIs públicas de Ashby y Greenhouse no equivalen automáticamente a permiso de terceros para agregar datos. Comprueba las condiciones del proveedor y del empleador antes de consultarlas; las consultas API se ejecutan solo al pulsar «Consultar ahora». El escaneo N2 de Ashby es distinto: lee enlaces y títulos visibles del único tablero autorizado y no hace peticiones de red.</div>
       <div class="panel levels-panel">
         <h3>Niveles de ritmo</h3>
         <p class="subdued">Cada tablero sube de nivel solo tras varias consultas sin incidencias. Un solo error 429 o 403 lo devuelve a A0.</p>
         <ul class="level-list">
-          <li><strong>A0</strong> · arranque y recuperación · 3–5 peticiones/min · espera mínima 15 min</li>
+          <li><strong>A0</strong> · arranque y recuperación · 3–5 peticiones/min · máximo 4 solicitudes por host cada 24 h · espera mínima 15 min</li>
           <li><strong>A1</strong> · tras 3 consultas limpias · 8–15 peticiones/min · espera mínima 10 min</li>
           <li><strong>A2</strong> · tras 3 consultas limpias en A1 · 20–40 peticiones/min · espera mínima 5 min</li>
         </ul>
@@ -57,10 +57,10 @@
         <label class="checkbox-line"><input id="source-confirm" type="checkbox" required /> He comprobado la documentación, las condiciones aplicables y la autorización necesaria para consultar este tablero.</label>
         <button class="btn primary" type="submit">Registrar tablero</button>
       </form>
-      <div class="results-title"><h3>Tableros configurados</h3><span>Consulta individual, nunca rastreo de sitios.</span></div>
+      <div class="results-title"><h3>Tableros configurados</h3><span>La API solo se consulta con una acción manual.</span></div>
       <div id="sources-list" class="sources-list"></div>
       <div class="panel hint"><h3>Registro de actividad</h3><p class="subdued">Últimas peticiones, pausas y cambios de nivel. Se guarda solo en esta sesión y no contiene datos personales.</p><div id="log-list" class="log-list"></div></div>
-      <div class="panel hint"><h3>LinkedIn, Indeed, Upwork y Computrabajo</h3><p>Puedes seguir guardándolos manualmente, que es lo que hace esta versión. Se reservan para conectores de nivel superior: lectura del endpoint interno del propio sitio o del DOM de la página, siempre declarada por fuente y con permiso acotado a ese dominio.</p></div>
+      <div class="panel hint"><h3>LinkedIn, Indeed, Upwork y Computrabajo</h3><p>Puedes seguirlos desde sus páginas originales. Esta versión no inspecciona su contenido ni consulta sus APIs; cada portal requiere una revisión independiente.</p></div>
     </section>
     <section id="section-preferences" class="section hidden">
       <div class="intro"><div><h2>Preferencias de búsqueda</h2><p>Un filtro transparente y configurable: no utilizamos modelos externos ni enviamos tu perfil a servidores.</p></div></div>
@@ -70,6 +70,7 @@
         <p class="fineprint">El salario se guarda como preferencia, pero NO se usa en la puntuación mientras no exista una normalización fiable de divisas y periodicidades. Si prefieres remoto, la modalidad sustituye a la coincidencia de ubicación en el cálculo actual.</p>
         <button class="btn primary" type="submit">Guardar preferencias</button>
       </form>
+      <div class="panel form-panel"><h3>Escaneo local de enlaces Ashby</h3><p id="ashby-auto-status" class="subdued">El escáner está apagado. Ábrelo desde el popup en el listado del único tablero que quieras revisar.</p><div class="button-row"><button class="btn secondary" id="ashby-auto-disable" type="button" hidden>Desactivar y revocar permiso</button></div></div>
       <div class="panel form-panel"><h3>Privacidad y respaldo</h3><p class="subdued">Exporta o importa tus datos en JSON. Las copias pueden contener notas personales: almacénalas de forma segura.</p><div class="button-row"><button class="btn secondary" type="button" id="export">Exportar respaldo JSON</button><label class="btn secondary file-picker">Importar respaldo JSON<input id="import" type="file" accept=".json,application/json" hidden /></label></div><p class="fineprint">Al importar, los tableros quedan deshabilitados y vuelven a A0 hasta una nueva revisión de las condiciones de uso.</p></div>
     </section>
   </main>

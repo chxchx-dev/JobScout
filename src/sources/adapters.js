@@ -62,28 +62,55 @@ export function normalizeResponse(source, data) {
   return jobs;
 }
 
+function retryableError(error, kind) {
+  const failure = error instanceof Error ? error : new Error(String(error));
+  failure.retryable = true;
+  failure.kind = kind;
+  return failure;
+}
+
 export async function fetchBoard(source, fetchFn = fetch) {
   const endpoint = sourceEndpoint(source);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 12000);
   try {
-    const response = await fetchFn(endpoint, {
-      method: 'GET',
-      credentials: 'omit',
-      redirect: 'error',
-      cache: 'no-store',
-      headers: { Accept: 'application/json' },
-      signal: controller.signal
-    });
-    if ([401, 403, 429].includes(response.status)) {
-      const error = new Error(`El proveedor devolvió HTTP ${response.status}. Conector desactivado por protección.`);
-      error.disableSource = true;
+    let response;
+    try {
+      response = await fetchFn(endpoint, {
+        method: 'GET',
+        credentials: 'omit',
+        redirect: 'error',
+        cache: 'no-store',
+        headers: { Accept: 'application/json' },
+        signal: controller.signal
+      });
+    } catch (error) {
+      throw retryableError(error, error?.name === 'AbortError' ? 'timeout' : 'network');
+    }
+
+    const endpointUrl = new URL(endpoint);
+    const responseUrl = new URL(response.url || endpoint);
+    if (responseUrl.origin !== endpointUrl.origin) {
+      const error = new Error('La respuesta redirigió a un host no declarado.');
+      error.kind = 'cross-host-redirect';
+      error.retryable = false;
       throw error;
     }
-    if (!response.ok) throw new Error(`Error HTTP ${response.status} de ${source.provider}.`);
+    if (!response.ok) {
+      const error = new Error(`Error HTTP ${response.status} de ${source.provider}.`);
+      error.status = response.status;
+      error.throttle = [401, 403, 429].includes(response.status);
+      error.retryable = response.status >= 500 && response.status <= 599;
+      throw error;
+    }
     const bytes = Number(response.headers.get('content-length'));
     if (bytes > 2_500_000) throw new Error('Respuesta excesivamente grande.');
-    const body = await response.text();
+    let body;
+    try {
+      body = await response.text();
+    } catch (error) {
+      throw retryableError(error, error?.name === 'AbortError' ? 'timeout' : 'network');
+    }
     if (body.length > 2_500_000) throw new Error('Respuesta excesivamente grande.');
     const payload = JSON.parse(body);
     return { jobs: normalizeResponse(source, payload), truncated: payload.jobs.length > 200 };

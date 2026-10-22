@@ -6,23 +6,11 @@
   "author": "chxchx-dev",
   "minimum_chrome_version": "114",
   "permissions": ["storage", "activeTab"],
+  "optional_permissions": ["scripting"],
+  "optional_host_permissions": ["https://jobs.ashbyhq.com/*"],
   "host_permissions": [
     "https://api.ashbyhq.com/*",
     "https://boards-api.greenhouse.io/*"
-  ],
-  "optional_host_permissions": [
-    "https://jobs.ashbyhq.com/*",
-    "https://*.greenhouse.io/*",
-    "https://*.linkedin.com/*",
-    "https://*.indeed.com/*",
-    "https://*.computrabajo.com/*"
-  ],
-  "content_scripts": [
-    {
-      "matches": ["https://jobs.ashbyhq.com/*"],
-      "js": ["src/content/content.js"],
-      "run_at": "document_idle"
-    }
   ],
   "background": {
     "service_worker": "src/background/service-worker.js",

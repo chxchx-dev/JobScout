@@ -7,6 +7,9 @@ export const DEFAULT_SETTINGS = Object.freeze({
   remotePreferred: true,
   expectedSalaryCop: '',
   minScore: 0,
+  autoScanAshby: false,
+  autoScanAshbyBoard: null,
+  autoScanAshbyPolicyReviewedAt: null,
   sources: []
 });
 
@@ -15,7 +18,17 @@ export function termsFrom(value) {
   return [...new Set(values.map(x => compactText(x, 60).toLowerCase()).filter(Boolean))].slice(0, 35);
 }
 
+function validTimestamp(value) {
+  return typeof value === 'string' && Number.isFinite(Date.parse(value))
+    ? new Date(value).toISOString() : null;
+}
+
 export function sanitizeSettings(raw = {}) {
+  const reviewedAt = typeof raw.autoScanAshbyPolicyReviewedAt === 'string' &&
+    Number.isFinite(Date.parse(raw.autoScanAshbyPolicyReviewedAt))
+    ? new Date(raw.autoScanAshbyPolicyReviewedAt).toISOString() : null;
+  const autoScanAshbyBoard = /^[A-Za-z0-9_-]{1,80}$/.test(String(raw.autoScanAshbyBoard ?? ''))
+    ? String(raw.autoScanAshbyBoard) : null;
   return {
     roles: termsFrom(raw.roles ?? DEFAULT_SETTINGS.roles),
     skills: termsFrom(raw.skills ?? DEFAULT_SETTINGS.skills),
@@ -23,17 +36,31 @@ export function sanitizeSettings(raw = {}) {
     remotePreferred: raw.remotePreferred === true,
     expectedSalaryCop: /^[0-9]{0,12}$/.test(String(raw.expectedSalaryCop ?? '')) ? String(raw.expectedSalaryCop ?? '') : '',
     minScore: Math.min(100, Math.max(0, Number(raw.minScore) || 0)),
-    sources: Array.isArray(raw.sources) ? raw.sources.slice(0, 30)
-      .filter(x => x && typeof x === 'object' && ['ashby', 'greenhouse'].includes(x.provider) && /^[A-Za-z0-9_-]{1,80}$/.test(x.board ?? ''))
-      .map(x => ({
-        id: /^[a-zA-Z0-9-]{1,80}$/.test(String(x.id ?? '')) ? String(x.id) : 'invalid',
-        provider: x.provider,
-        board: x.board,
-        company: compactText(x.company, 120),
-        enabled: x.enabled === true && Boolean(x.policyReviewedAt),
-        policyReviewedAt: typeof x.policyReviewedAt === 'string' ? x.policyReviewedAt.slice(0, 32) : null,
-        lastCheckedAt: typeof x.lastCheckedAt === 'string' ? x.lastCheckedAt.slice(0, 32) : null
-      })) : []
+    autoScanAshby: raw.autoScanAshby === true && Boolean(reviewedAt) && Boolean(autoScanAshbyBoard),
+    autoScanAshbyBoard: raw.autoScanAshby === true && reviewedAt ? autoScanAshbyBoard : null,
+    autoScanAshbyPolicyReviewedAt: reviewedAt,
+    sources: (() => {
+      return Array.isArray(raw.sources) ? raw.sources.slice(0, 30)
+        .filter(x => x && typeof x === 'object' && ['ashby', 'greenhouse'].includes(x.provider) && /^[A-Za-z0-9_-]{1,80}$/.test(x.board ?? ''))
+        .map(x => {
+          const policyReviewedAt = validTimestamp(x.policyReviewedAt);
+          const enabled = x.enabled === true && Boolean(policyReviewedAt);
+          return {
+            id: /^[a-zA-Z0-9-]{1,80}$/.test(String(x.id ?? '')) ? String(x.id) : 'invalid',
+            provider: x.provider,
+            board: x.board,
+            company: compactText(x.company, 120),
+            enabled,
+            policyReviewedAt,
+            level: ['A0', 'A1', 'A2'].includes(x.level) ? x.level : 'A0',
+            throttled: x.throttled === true,
+            cleanSessions: Math.max(0, Math.min(1000, Math.floor(Number(x.cleanSessions) || 0))),
+            lastAttemptAt: validTimestamp(x.lastAttemptAt),
+            lastCheckedAt: validTimestamp(x.lastCheckedAt),
+            session: false
+          };
+        }) : [];
+    })()
   };
 }
 

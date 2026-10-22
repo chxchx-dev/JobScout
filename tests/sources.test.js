@@ -34,16 +34,16 @@ test('API: no envía credenciales por defecto', async () => {
   });
 });
 
-test('API: usa sesión solo si la fuente la declara', async () => {
+test('API N0: omite sesión aunque la configuración antigua la marque', async () => {
   await fetchBoard({ ...ashby, session: true }, async (_url, options) => {
-    assert.equal(options.credentials, 'include');
+    assert.equal(options.credentials, 'omit');
     return okJson({ jobs: [] });
   });
 });
 
-test('API: sigue redirecciones dentro del host declarado', async () => {
+test('API: no sigue redirecciones automáticas', async () => {
   await fetchBoard(ashby, async (_url, options) => {
-    assert.equal(options.redirect, 'follow');
+    assert.equal(options.redirect, 'error');
     return okJson({ jobs: [] }, { url: 'https://api.ashbyhq.com/posting-api/job-board/Example/' });
   });
 });
@@ -84,5 +84,12 @@ test('API: 5xx se marca reintentable sin abrir disyuntor', async () => {
   await assert.rejects(
     () => fetchBoard(greenhouse, async () => ({ ok: false, status: 503, headers: new Headers() })),
     (error) => error.retryable === true && error.throttle !== true
+  );
+});
+
+test('API: los fallos de red se marcan reintentables', async () => {
+  await assert.rejects(
+    () => fetchBoard(greenhouse, async () => { throw new TypeError('offline'); }),
+    (error) => error.retryable === true && error.kind === 'network'
   );
 });

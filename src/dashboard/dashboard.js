@@ -3,6 +3,7 @@ import { calculateMatch, sanitizeSettings } from '../core/matching.js';
 import { listOpportunities, upsertOpportunities, updateOpportunity, deleteOpportunity } from '../storage/opportunities.js';
 import { loadSettings, saveSettings, restrictStorage } from '../storage/settings.js';
 import { validateSource } from '../sources/adapters.js';
+import { RETRY_FLOOR_MS } from '../core/pacing.js';
 
 function required(id) {
   const node = document.getElementById(id);
@@ -12,9 +13,6 @@ function required(id) {
 const $ = required;
 
 const PROVIDER_LABELS = { ashby: 'Ashby', greenhouse: 'Greenhouse' };
-
-// Suelo de reintento por tablero según el nivel de agresividad.
-const RETRY_FLOOR_MS = { A0: 15 * 60_000, A1: 10 * 60_000, A2: 5 * 60_000 };
 
 const state = { settings: null, jobs: [], editingId: null };
 const statusNames = Object.fromEntries(STATES);
@@ -43,6 +41,49 @@ function cooldownRemaining(source) {
   const floor = RETRY_FLOOR_MS[source.level || 'A0'];
   const last = source.lastAttemptAt ? Date.parse(source.lastAttemptAt) : 0;
   return Math.max(0, floor - (Date.now() - last));
+}
+
+function publicBoardUrl(source) {
+  const board = encodeURIComponent(source.board);
+  return source.provider === 'ashby'
+    ? `https://jobs.ashbyhq.com/${board}`
+    : `https://boards.greenhouse.io/${board}`;
+}
+
+async function runSourceSync(source) {
+  const sourceId = source.id;
+  try {
+    const response = await chrome.runtime.sendMessage({ type: 'SYNC_SOURCE', sourceId });
+    state.settings = await loadSettings();
+    const current = sources().find(item => item.id === sourceId);
+
+    if (!response?.ok) {
+      if (current && response?.throttle) {
+        current.throttled = true;
+        current.level = 'A0';
+      }
+      state.settings = await saveSettings(state.settings);
+      const wait = response?.retryAfterMs ? ` Reintento sugerido en ${formatWait(response.retryAfterMs)}.` : '';
+      throw new Error((response?.message || 'No hay respuesta del conector.') + wait);
+    }
+
+    const outcome = await upsertOpportunities(response.jobs);
+    if (current) {
+      current.lastCheckedAt = new Date().toISOString();
+      if (response.level && response.level !== current.level) {
+        current.level = response.level;
+        current.throttled = response.level === 'A0' && current.throttled;
+      }
+    }
+    state.settings = await saveSettings(state.settings);
+    await reloadJobs();
+    feedback(`Consulta finalizada: ${outcome.requested} ofertas válidas, ${outcome.added} nuevas.${response.truncated ? ' Atención: el tablero supera el límite de 200 ofertas; esta consulta es parcial.' : ''} No se postuló automáticamente.`);
+  } catch (error) {
+    state.settings = await loadSettings();
+    feedback(error.message, true);
+  } finally {
+    renderSources();
+  }
 }
 
 function formatWait(ms) {
@@ -204,6 +245,17 @@ function hydratePreferences() {
   $('pref-score').value = String(state.settings.minScore);
 }
 
+async function renderAshbyAutoStatus() {
+  const enabled = state.settings.autoScanAshby === true && Boolean(state.settings.autoScanAshbyPolicyReviewedAt);
+  const permission = enabled && await chrome.permissions.contains({
+    permissions: ['scripting'], origins: ['https://jobs.ashbyhq.com/*']
+  }).catch(() => false);
+  $('ashby-auto-status').textContent = permission
+    ? `Activo solo para el tablero ${state.settings.autoScanAshbyBoard}: guarda enlaces y títulos visibles, sin consultar la red.`
+    : 'El escáner está apagado. Ábrelo desde el popup en el listado del único tablero que quieras revisar.';
+  $('ashby-auto-disable').hidden = !enabled;
+}
+
 async function submitPreferences(event) {
   event.preventDefault();
   state.settings = await saveSettings({
@@ -240,39 +292,21 @@ function makeSourceCard(source) {
 
   const actions = element('div', 'source-actions');
 
+  const openBoard = element('button', 'btn secondary', 'Abrir tablero ↗');
+  openBoard.type = 'button';
+  openBoard.addEventListener('click', async () => {
+    try { await chrome.tabs.create({ url: publicBoardUrl(source) }); }
+    catch (error) { feedback(`No se pudo abrir el tablero: ${error.message}`, true); }
+  });
+  actions.append(openBoard);
+
   const sync = element('button', 'btn primary', 'Consultar ahora');
   sync.type = 'button';
   sync.disabled = !source.enabled || wait > 0;
   sync.addEventListener('click', async () => {
     sync.disabled = true;
     sync.textContent = 'Consultando…';
-    try {
-      const response = await chrome.runtime.sendMessage({ type: 'SYNC_SOURCE', sourceId: source.id });
-      source.lastAttemptAt = new Date().toISOString();
-
-      if (!response?.ok) {
-        // Un 429/403 degrada, no desactiva. La fuente sigue disponible.
-        if (response?.throttle) {
-          source.throttled = true;
-          source.level = 'A0';
-        }
-        state.settings = await saveSettings(state.settings);
-        const wait = response?.retryAfterMs ? ` Reintento sugerido en ${formatWait(response.retryAfterMs)}.` : '';
-        throw new Error((response?.message || 'No hay respuesta del conector.') + wait);
-      }
-
-      const outcome = await upsertOpportunities(response.jobs);
-      source.lastCheckedAt = new Date().toISOString();
-      if (response.level && response.level !== source.level) {
-        source.level = response.level;
-        source.throttled = response.level === 'A0' && source.throttled;
-      }
-      state.settings = await saveSettings(state.settings);
-      await reloadJobs();
-      feedback(`Consulta finalizada: ${outcome.requested} ofertas válidas, ${outcome.added} nuevas.${response.truncated ? ' Atención: el tablero supera el límite de 200 ofertas; esta consulta es parcial.' : ''} No se postuló automáticamente.`);
-    } catch (error) {
-      feedback(error.message, true);
-    } finally { renderSources(); }
+    await runSourceSync(source);
   });
 
   const toggle = element('button', 'btn secondary', source.enabled ? 'Pausar' : 'Habilitar');
@@ -345,6 +379,7 @@ async function addSource(event) {
     enabled: confirmed,
     policyReviewedAt: confirmed ? new Date().toISOString() : null,
     level: 'A0',
+    cleanSessions: 0,
     throttled: false,
     session: false,
     lastAttemptAt: null,
@@ -361,7 +396,7 @@ async function addSource(event) {
     state.settings = await saveSettings({ ...state.settings, sources: [...sources(), source] });
     $('source-form').reset();
     renderSources();
-    feedback('Tablero registrado en nivel A0. La primera consulta requiere pulsar «Consultar ahora».');
+    feedback('Tablero registrado. Las consultas API solo se ejecutan al pulsar «Consultar ahora».');
   } catch (error) { feedback(error.message, true); }
 }
 
@@ -376,7 +411,11 @@ async function renderLog() {
     return;
   }
   for (const entry of entries.slice(-40).reverse()) {
-    const line = element('p', 'log-line', `${entry.at} · ${entry.host} · ${entry.status ?? entry.event} · nivel ${entry.level}`);
+    const level = entry.level ? ` · nivel ${entry.level}` : '';
+    const scan = entry.event === 'links-scanned'
+      ? ` · ${entry.offers ?? 0} enlaces, ${entry.added ?? 0} nuevos${entry.truncated ? ' · lote parcial (máx. 200)' : ''}`
+      : '';
+    const line = element('p', 'log-line', `${entry.at} · ${entry.host} · ${entry.status ?? entry.event}${level}${scan}`);
     container.append(line);
   }
 }
@@ -419,12 +458,18 @@ async function importBackup(event) {
     if (data.settings && typeof data.settings === 'object') {
       const imported = sanitizeSettings(data.settings);
       const inactiveSources = (imported.sources ?? []).map(src => ({
-        ...src, enabled: false, policyReviewedAt: null, throttled: false, level: src.level || 'A0', lastAttemptAt: null
+        ...src, enabled: false, policyReviewedAt: null, throttled: false, level: src.level || 'A0',
+        lastAttemptAt: null
       }));
-      state.settings = await saveSettings({ ...imported, sources: inactiveSources });
+      state.settings = await saveSettings({
+        ...imported, autoScanAshby: false, autoScanAshbyPolicyReviewedAt: null, sources: inactiveSources
+      });
     }
+    await chrome.runtime.sendMessage({ type: 'DISABLE_ASHBY_AUTO_SCAN' }).catch(() => null);
+    state.settings = await loadSettings();
     hydratePreferences();
     renderSources();
+    await renderAshbyAutoStatus();
     await reloadJobs();
     feedback(`${sanitized.length} oportunidades procesadas. Las fuentes importadas permanecen deshabilitadas.`);
   } catch (error) { feedback(`Importación rechazada: ${error.message}`, true); }
@@ -436,8 +481,16 @@ async function start() {
   state.settings = await loadSettings();
   hydratePreferences();
   renderSources();
+  await renderAshbyAutoStatus();
   await reloadJobs();
 }
+
+chrome.runtime.onMessage.addListener((message, sender) => {
+  if (sender.id === chrome.runtime.id && message?.type === 'OPPORTUNITIES_UPDATED') {
+    void reloadJobs().catch(error => feedback(`No se pudo actualizar el dashboard: ${error.message}`, true));
+  }
+  return false;
+});
 
 for (const button of document.querySelectorAll('[data-section]')) {
   button.addEventListener('click', () => navigate(button.dataset.section));
@@ -447,6 +500,15 @@ $('hide-add').addEventListener('click', () => $('manual-form').classList.add('hi
 $('manual-form').addEventListener('submit', addManual);
 $('source-form').addEventListener('submit', addSource);
 $('preferences-form').addEventListener('submit', submitPreferences);
+$('ashby-auto-disable').addEventListener('click', async () => {
+  try {
+    const response = await chrome.runtime.sendMessage({ type: 'DISABLE_ASHBY_AUTO_SCAN' });
+    if (!response?.ok) throw new Error(response?.message || 'No se pudo desactivar el escáner.');
+    state.settings = await loadSettings();
+    await renderAshbyAutoStatus();
+    feedback('Escaneo desactivado. Las ofertas guardadas se conservan.');
+  } catch (error) { feedback(error.message, true); }
+});
 
 for (const id of ['search', 'status-filter', 'platform-filter', 'sort']) {
   $(id).addEventListener(id === 'search' ? 'input' : 'change', () => {

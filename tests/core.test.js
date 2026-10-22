@@ -49,6 +49,34 @@ test('normaliza preferencias y no duplica roles equivalentes', () => {
   assert.equal(sanitizeSettings({ roles: 'Backend, backend', skills: 'SQL, PYTHON' }).roles.length, 1);
 });
 
+test('settings: el escaneo N2 de Ashby queda apagado por defecto y fija un solo tablero', () => {
+  assert.equal(sanitizeSettings({}).autoScanAshby, false);
+  assert.equal(sanitizeSettings({ autoScanAshby: true }).autoScanAshby, false);
+  assert.equal(sanitizeSettings({ autoScanAshby: true, autoScanAshbyPolicyReviewedAt: 'invalida' }).autoScanAshby, false);
+  assert.equal(sanitizeSettings({
+    autoScanAshby: true,
+    autoScanAshbyBoard: 'acme-corp',
+    autoScanAshbyPolicyReviewedAt: '2026-10-22T00:00:00.000Z'
+  }).autoScanAshby, true);
+  assert.equal(sanitizeSettings({
+    autoScanAshby: true,
+    autoScanAshbyBoard: '../another-board',
+    autoScanAshbyPolicyReviewedAt: '2026-10-22T00:00:00.000Z'
+  }).autoScanAshby, false);
+  assert.equal(sanitizeSettings({ autoScanAshbyBoard: 'acme-corp' }).autoScanAshbyBoard, null);
+});
+
+test('settings: no restaura la sincronización N0 automática heredada', () => {
+  const settings = sanitizeSettings({
+    sources: [{
+      id: 'old-ashby-source', provider: 'ashby', board: 'acme-corp', company: 'Acme',
+      enabled: true, policyReviewedAt: '2026-10-22T00:00:00.000Z', autoSyncOnDashboardOpen: true
+    }]
+  });
+  assert.equal(settings.sources[0].enabled, true);
+  assert.equal(settings.sources[0].autoSyncOnDashboardOpen, undefined);
+});
+
 test('normalización de respaldo impide modificar ID y estado arbitrariamente', () => {
   const job = validateImportedJob({ id: 'arbitrary', title: 'A', url: 'https://example.org/a', status: 'hacked', notes: 'ok' });
   assert.equal(job.id, 'url:https://example.org/a');
