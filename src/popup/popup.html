@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>JobScout by chxchx-dev</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <header>
+    <div class="brand"><img class="brand-icon" src="../../assets/jobscout-icon.svg" alt="" /><div><strong>JobScout</strong><small>by chxchx-dev</small></div></div>
+    <span class="local">LOCAL</span>
+  </header>
+  <main>
+    <div class="hero"><h1>Guarda esta oportunidad</h1><p>Se guarda el título y el enlace de la pestaña: no se lee ni modifica la página.</p></div>
+    <form id="save-form">
+      <label for="url">Enlace HTTPS</label><input id="url" type="url" placeholder="https://..." required />
+      <label for="title">Cargo o título</label><input id="title" type="text" maxlength="180" placeholder="Ej. Software Engineer" required />
+      <label for="company">Empresa (opcional)</label><input id="company" type="text" maxlength="120" placeholder="Nombre de la empresa" />
+      <button class="primary" type="submit">Guardar oportunidad</button>
+    </form>
+    <p id="message" role="status" aria-live="polite"></p>
+    <button id="dashboard" class="secondary" type="button">Abrir dashboard <span>↗</span></button>
+  </main>
+  <footer>Sin extracción del DOM · Sin acceso a cuentas</footer>
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

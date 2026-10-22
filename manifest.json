@@ -1,0 +1,42 @@
+{
+  "manifest_version": 3,
+  "name": "JobScout by chxchx-dev",
+  "version": "0.2.0",
+  "description": "Guarda, clasifica y organiza oportunidades laborales desde fuentes declaradas, local y sin servidores.",
+  "author": "chxchx-dev",
+  "minimum_chrome_version": "114",
+  "permissions": ["storage", "activeTab"],
+  "host_permissions": [
+    "https://api.ashbyhq.com/*",
+    "https://boards-api.greenhouse.io/*"
+  ],
+  "optional_host_permissions": [
+    "https://jobs.ashbyhq.com/*",
+    "https://*.greenhouse.io/*",
+    "https://*.linkedin.com/*",
+    "https://*.indeed.com/*",
+    "https://*.computrabajo.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://jobs.ashbyhq.com/*"],
+      "js": ["src/content/content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "background": {
+    "service_worker": "src/background/service-worker.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "JobScout by chxchx-dev — Guardar oportunidad",
+    "default_popup": "src/popup/popup.html",
+    "default_icon": { "16": "assets/icon-16.png", "32": "assets/icon-32.png" }
+  },
+  "icons": {
+    "16": "assets/icon-16.png",
+    "32": "assets/icon-32.png",
+    "48": "assets/icon-48.png",
+    "128": "assets/icon-128.png"
+  }
+}

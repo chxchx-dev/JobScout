@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+<title>JobScout icon</title>
+<rect x="0" y="0" width="128" height="128" rx="29" fill="#2563EB"/>
+<g fill="none" stroke="#FFFFFF" stroke-linecap="round" stroke-linejoin="round">
+  <circle cx="55" cy="53" r="27" stroke-width="9"/>
+  <path d="M75 74 L100 99" stroke-width="11"/>
+  <path d="M43 53 L51.5 61.5 L67.5 45.5" stroke-width="7"/>
+</g>
+</svg>

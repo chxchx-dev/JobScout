@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 200" width="820" height="200">
+<title>JobScout logo</title>
+<g transform="translate(29 27) scale(1.14)">
+ <rect width="128" height="128" rx="29" fill="#2563EB"/>
+ <g fill="none" stroke="#FFFFFF" stroke-linecap="round" stroke-linejoin="round">
+  <circle cx="55" cy="53" r="27" stroke-width="9"/>
+  <path d="M75 74 L100 99" stroke-width="11"/>
+  <path d="M43 53 L51.5 61.5 L67.5 45.5" stroke-width="7"/>
+ </g>
+</g>
+<text x="213" y="130" fill="#172033" font-family="DejaVu Sans, Arial, sans-serif" font-size="77" font-weight="700" letter-spacing="-3">JobScout</text>
+</svg>
